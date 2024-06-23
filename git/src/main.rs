@@ -77,18 +77,18 @@ fn main() -> Result<(), Box<dyn Error>> {
             let object_folder = &object_hash[..2];
             let object_file = &object_hash[2..];
 
-            let path: PathBuf = [BASE_FOLDER, OBJECTS_FOLDER, object_folder, object_file]
+            let object_path: PathBuf = [BASE_FOLDER, OBJECTS_FOLDER, object_folder, object_file]
                 .iter()
                 .collect();
 
-            let file = File::open(path)?;
+            let object_path = File::open(object_path)?;
 
-            let mut z = ZlibDecoder::new(file);
-            let mut s = String::new();
+            let mut zlib_decoder = ZlibDecoder::new(object_path);
+            let mut string_buffer = String::new();
 
-            z.read_to_string(&mut s)?;
-            let s: String = s.split('\0').skip(1).collect();
-            println!("{s}");
+            zlib_decoder.read_to_string(&mut string_buffer)?;
+            let result: String = string_buffer.split('\0').skip(1).collect();
+            println!("{result}");
         }
     }
 
