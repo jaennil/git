@@ -70,7 +70,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             pretty_print: _,
             object_hash,
         } => {
-            if object_hash.len() != 40 {
+            if object_hash.len() > 40 {
                 return Err(Box::new(AppError::InvalidSha));
             }
 
