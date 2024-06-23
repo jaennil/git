@@ -1,14 +1,11 @@
 use std::{
-    error::Error,
-    fmt::Display,
     fs::{self, File},
     io::Read,
     path::PathBuf,
 };
 
+use anyhow::Context as _;
 use flate2::read::ZlibDecoder;
-
-use std::fmt;
 
 use clap::{Parser, Subcommand};
 
@@ -21,10 +18,6 @@ struct Cli {
     command: Command,
 }
 
-enum ObjectType {
-    Blob,
-}
-
 #[derive(Subcommand)]
 enum Command {
     Init,
@@ -35,27 +28,7 @@ enum Command {
     },
 }
 
-enum AppError {
-    InvalidSha,
-}
-
-impl Display for AppError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidSha => write!(f, "object hash must be valid sha1"),
-        }
-    }
-}
-
-impl fmt::Debug for AppError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
-    }
-}
-
-impl Error for AppError {}
-
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
@@ -64,29 +37,27 @@ fn main() -> Result<(), Box<dyn Error>> {
             fs::create_dir(".git/objects").unwrap();
             fs::create_dir(".git/refs").unwrap();
             fs::write(".git/HEAD", "ref: refs/heads/main\n").unwrap();
-            println!("Initialized git directory")
+            // TODO: add pwd
+            println!("Initialized empty Git repository in ...")
         }
         Command::CatFile {
             pretty_print: _,
             object_hash,
         } => {
-            if object_hash.len() > 40 {
-                return Err(Box::new(AppError::InvalidSha));
-            }
-
+            anyhow::ensure!(object_hash.len() <= 40, "object hash must be valid SHA-1");
             let object_folder = &object_hash[..2];
-            let object_file = &object_hash[2..];
-
-            let object_path: PathBuf = [BASE_FOLDER, OBJECTS_FOLDER, object_folder, object_file]
-                .iter()
-                .collect();
-
-            let object_path = File::open(object_path)?;
-
-            let mut zlib_decoder = ZlibDecoder::new(object_path);
+            let object_filename = &object_hash[2..];
+            let object_path: PathBuf =
+                [BASE_FOLDER, OBJECTS_FOLDER, object_folder, object_filename]
+                    .iter()
+                    .collect();
+            let object_file =
+                File::open(object_path).context("can't find object file at {object_path}")?;
+            let mut zlib_decoder = ZlibDecoder::new(object_file);
             let mut string_buffer = String::new();
-
-            zlib_decoder.read_to_string(&mut string_buffer)?;
+            zlib_decoder
+                .read_to_string(&mut string_buffer)
+                .context("data in object is not valid UTF-8")?;
             let result: String = string_buffer.split('\0').skip(1).collect();
             println!("{result}");
         }
