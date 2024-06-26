@@ -1,8 +1,8 @@
 use std::{
     ffi::CStr,
-    fs::{self, File},
+    fs::{self, metadata, File},
     io::{BufRead as _, BufReader, Read, Write as _},
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::from_utf8,
 };
 
@@ -30,7 +30,7 @@ enum Command {
         object_hash: String,
     },
     HashObject {
-        file: String,
+        filepath: PathBuf,
         #[arg(short)]
         write: bool,
     },
@@ -99,28 +99,24 @@ fn main() -> anyhow::Result<()> {
                 _ => anyhow::bail!("can't print {kind} yet"),
             }
         }
-        Command::HashObject { file, write } => {
-            let mut object = "blob ".to_string();
-            let filebytes = fs::read(file).context("read passed file contents")?;
-            object.push_str(&filebytes.len().to_string());
-            object.push('\0');
-            let file_contents =
-                from_utf8(&filebytes).context("file contents are not valid UTF-8")?;
-            object.push_str(file_contents);
+        Command::HashObject { filepath, write } => {
+            let filebytes = fs::read(&filepath).context("read passed file contents")?;
+            let mut object = b"blob ".to_vec();
+            object.extend(filebytes.len().to_string().as_bytes());
+            object.push(0);
+            object.extend(filebytes);
             let sha1 = Sha1::from(&object).digest().to_string();
             if write {
-                let object_dir_name = &sha1[..2];
-                let object_filename = &sha1[2..];
-                let objects_path: PathBuf = [BASE_FOLDER, OBJECTS_FOLDER].iter().collect();
-                let mut object_dir_path = PathBuf::from(objects_path);
-                object_dir_path.push(object_dir_name);
-                let mut object_file_path = PathBuf::from(&object_dir_path);
-                object_file_path.push(object_filename);
-                fs::create_dir(object_dir_path).context("create object dir")?;
-                let file = File::create(object_file_path).context("create object file")?;
+                let dir_name = &sha1[..2];
+                let filename = &sha1[2..];
+                let dir_path: PathBuf = [BASE_FOLDER, OBJECTS_FOLDER, dir_name].iter().collect();
+                fs::create_dir(&dir_path).context("create object directory")?;
+                let mut object_filepath = PathBuf::from(&dir_path);
+                object_filepath.push(filename);
+                let file = File::create(object_filepath).context("create object file")?;
                 let mut zlib_encoder = ZlibEncoder::new(file, Compression::default());
                 zlib_encoder
-                    .write_all(object.as_bytes())
+                    .write_all(&object)
                     .context("write object to zlib encoder")?;
                 zlib_encoder
                     .finish()
