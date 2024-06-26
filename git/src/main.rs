@@ -100,15 +100,16 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Command::HashObject { filepath, write } => {
-            let filebytes = fs::read(&filepath).context("read passed file contents")?;
+            let filebytes = fs::read(&filepath)
+                .with_context(|| format!("read {} contents", filepath.display()))?;
             let mut object = b"blob ".to_vec();
             object.extend(filebytes.len().to_string().as_bytes());
             object.push(0);
             object.extend(filebytes);
-            let sha1 = Sha1::from(&object).digest().to_string();
+            let hash = Sha1::from(&object).digest().to_string();
             if write {
-                let dir_name = &sha1[..2];
-                let filename = &sha1[2..];
+                let dir_name = &hash[..2];
+                let filename = &hash[2..];
                 let dir_path: PathBuf = [BASE_FOLDER, OBJECTS_FOLDER, dir_name].iter().collect();
                 fs::create_dir(&dir_path).context("create object directory")?;
                 let mut object_filepath = PathBuf::from(&dir_path);
@@ -122,7 +123,7 @@ fn main() -> anyhow::Result<()> {
                     .finish()
                     .context("flush zlib encoded object to the file")?;
             }
-            println!("{sha1}");
+            println!("{hash}");
         }
     }
 
