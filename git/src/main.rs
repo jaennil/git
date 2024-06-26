@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::Context as _;
-use flate2::read::ZlibDecoder;
+use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
 
 use clap::{Parser, Subcommand};
 use sha1_smol::Sha1;
@@ -107,7 +107,25 @@ fn main() -> anyhow::Result<()> {
             let file_contents =
                 from_utf8(&filebytes).context("file contents are not valid UTF-8")?;
             object.push_str(file_contents);
-            let sha1 = Sha1::from(object).digest().to_string();
+            let sha1 = Sha1::from(&object).digest().to_string();
+            if write {
+                let object_dir_name = &sha1[..2];
+                let object_filename = &sha1[2..];
+                let objects_path: PathBuf = [BASE_FOLDER, OBJECTS_FOLDER].iter().collect();
+                let mut object_dir_path = PathBuf::from(objects_path);
+                object_dir_path.push(object_dir_name);
+                let mut object_file_path = PathBuf::from(&object_dir_path);
+                object_file_path.push(object_filename);
+                fs::create_dir(object_dir_path).context("create object dir")?;
+                let file = File::create(object_file_path).context("create object file")?;
+                let mut zlib_encoder = ZlibEncoder::new(file, Compression::default());
+                zlib_encoder
+                    .write_all(object.as_bytes())
+                    .context("write object to zlib encoder")?;
+                zlib_encoder
+                    .finish()
+                    .context("flush zlib encoded object to the file")?;
+            }
             println!("{sha1}");
         }
     }
