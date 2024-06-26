@@ -3,12 +3,14 @@ use std::{
     fs::{self, File},
     io::{BufRead as _, BufReader, Read, Write as _},
     path::PathBuf,
+    str::from_utf8,
 };
 
 use anyhow::Context as _;
 use flate2::read::ZlibDecoder;
 
 use clap::{Parser, Subcommand};
+use sha1_smol::Sha1;
 
 const BASE_FOLDER: &str = ".git";
 const OBJECTS_FOLDER: &str = "objects";
@@ -26,6 +28,11 @@ enum Command {
         #[arg(short)]
         pretty_print: bool,
         object_hash: String,
+    },
+    HashObject {
+        file: String,
+        #[arg(short)]
+        write: bool,
     },
 }
 
@@ -91,6 +98,17 @@ fn main() -> anyhow::Result<()> {
                 }
                 _ => anyhow::bail!("can't print {kind} yet"),
             }
+        }
+        Command::HashObject { file, write } => {
+            let mut object = "blob ".to_string();
+            let filebytes = fs::read(file).context("read passed file contents")?;
+            object.push_str(&filebytes.len().to_string());
+            object.push('\0');
+            let file_contents =
+                from_utf8(&filebytes).context("file contents are not valid UTF-8")?;
+            object.push_str(file_contents);
+            let sha1 = Sha1::from(object).digest().to_string();
+            println!("{sha1}");
         }
     }
 
