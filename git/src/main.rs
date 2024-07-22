@@ -1,9 +1,8 @@
 use std::{
     ffi::CStr,
-    fs::{self, metadata, File},
+    fs::{self, File},
     io::{BufRead as _, BufReader, Read, Write as _},
-    path::{Path, PathBuf},
-    str::from_utf8,
+    path::PathBuf,
 };
 
 use anyhow::Context as _;
@@ -33,6 +32,9 @@ enum Command {
         filepath: PathBuf,
         #[arg(short)]
         write: bool,
+    },
+    LsTree {
+        tree_hash: String,
     },
 }
 
@@ -124,6 +126,9 @@ fn main() -> anyhow::Result<()> {
                     .context("flush zlib encoded object to the file")?;
             }
             println!("{hash}");
+        }
+        Command::LsTree { tree_hash } => {
+            // fs::read_dir(path)
         }
     }
 
